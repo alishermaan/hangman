@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hangman Game</title>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Hangman drawing area */
+        .hangman-stage {
+            font-family: monospace;
+            white-space: pre; /* Preserve whitespace for ASCII art */
+            min-height: 120px; /* Ensure space for the drawing */
+            text-align: center;
+        }
+
+        /* Set default font-family for the entire document */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Home Screen -->
+    <div id="home-screen" class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col items-center justify-center text-center transition-opacity duration-500 ease-in-out">
+        <h1 class="text-6xl md:text-7xl font-extrabold text-gray-800 mb-6 tracking-tight animate-bounce">Hangman</h1>
+        <p class="text-2xl md:text-3xl text-gray-700 mb-10">Guess the hidden word before the stick figure is complete!</p>
+        <button id="play-game-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-10 rounded-full shadow-lg transform transition duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 text-2xl">
+            Play Game
+        </button>
+    </div>
+
+    <!-- Game Container (Initially hidden) -->
+    <div id="game-container" class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row gap-8 hidden opacity-0 transition-opacity duration-500 ease-in-out">
+        <!-- Game Display Section -->
+        <div class="flex-1 flex flex-col items-center justify-center text-center">
+            <h1 class="text-5xl md:text-6xl font-extrabold text-gray-800 mb-6 tracking-tight">Hangman</h1>
+
+            <!-- Hangman Drawing Area -->
+            <div id="hangman-drawing" class="hangman-stage text-gray-700 text-lg md:text-xl font-bold mb-6 w-full max-w-xs md:max-w-sm border-2 border-gray-300 rounded-lg p-4 bg-gray-50 overflow-hidden">
+                <!-- ASCII art will be inserted here by JavaScript -->
+            </div>
+
+            <!-- Word Display -->
+            <div id="word-display" class="text-6xl md:text-7xl font-bold tracking-widest text-indigo-700 mb-8 p-4 bg-indigo-50 rounded-lg shadow-inner w-full overflow-auto">
+                _ _ _ _
+            </div>
+
+            <!-- Used Letters Display -->
+            <div class="mb-8 text-xl md:text-2xl font-semibold text-gray-600">
+                Used Letters: <span id="used-letters" class="text-purple-600"></span>
+            </div>
+
+            <!-- Game Message -->
+            <div id="game-message" class="text-2xl md:text-3xl font-bold text-red-500 mb-8 min-h-[3rem]">
+                <!-- Game messages like win/lose will appear here -->
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 mb-8 w-full justify-center">
+                <button id="start-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full shadow-lg transform transition duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
+                    Restart Game
+                </button>
+                <button id="hint-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-8 rounded-full shadow-lg transform transition duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Get Hint
+                </button>
+            </div>
+        </div>
+
+        <!-- Keyboard Section -->
+        <div class="flex-1 flex flex-col items-center justify-center">
+            <div id="keyboard" class="grid grid-cols-5 md:grid-cols-6 gap-2 w-full max-w-md">
+                <!-- Alphabet buttons will be generated here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const homeScreen = document.getElementById('home-screen');
+        const gameContainer = document.getElementById('game-container');
+        const playGameButton = document.getElementById('play-game-button');
+
+        const wordDisplay = document.getElementById('word-display');
+        const usedLettersDisplay = document.getElementById('used-letters');
+        const hangmanDrawing = document.getElementById('hangman-drawing');
+        const gameMessage = document.getElementById('game-message');
+        const startButton = document.getElementById('start-button');
+        const hintButton = document.getElementById('hint-button');
+        const keyboard = document.getElementById('keyboard');
+
+        // Game State Variables
+        let wordToGuess = '';
+        let guessedLetters = new Set();
+        let wrongGuesses = 0;
+        const maxWrongGuesses = 6;
+        let gameActive = false;
+        let hintUsed = false;
+
+        // List of words for the game
+        const words = [
+            'APPLE', 'HOUSE', 'TABLE', 'CHAIR', 'WATER',
+            'FLOWER', 'BIRD', 'HAPPY', 'MUSIC', 'BOOK',
+            'PENCIL', 'RIVER', 'MOUNTAIN', 'SCHOOL', 'FRIEND',
+            'FAMILY', 'SUNSHINE', 'DREAM', 'JOURNEY', 'SILENCE',
+            'LAUGHTER', 'ADVENTURE', 'EXPLORE', 'FOREST', 'OCEAN'
+        ];
+
+        // Hangman ASCII Art Stages
+        const hangmanStages = [
+            `
+  +---+
+  |   |
+      |
+      |
+      |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+      |
+      |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+  |   |
+      |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+ /|   |
+      |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+ /|\\  |
+      |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+ /|\\  |
+ /    |
+      |
+=========
+            `,
+            `
+  +---+
+  |   |
+  O   |
+ /|\\  |
+ / \\  |
+      |
+=========
+            `
+        ];
+
+        /**
+         * Initializes the game state, picks a new word, and updates the display.
+         */
+        function initGame() {
+            try {
+                // Reset game state
+                wordToGuess = words[Math.floor(Math.random() * words.length)].toUpperCase();
+                guessedLetters.clear();
+                wrongGuesses = 0;
+                gameActive = true;
+                hintUsed = false;
+
+                // Enable hint button at the start of a new game
+                hintButton.disabled = false;
+                hintButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                let revealedLetter = '';
+                // Feature: Reveal one random letter at the start
+                if (wordToGuess.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * wordToGuess.length);
+                    revealedLetter = wordToGuess[randomIndex];
+                    guessedLetters.add(revealedLetter);
+                    console.log(`Initial revealed letter: ${revealedLetter}`);
+                }
+
+                // Update displays
+                updateWordDisplay();
+                updateUsedLettersDisplay();
+                updateHangmanDrawing();
+                gameMessage.textContent = 'Guess the word!';
+                startButton.textContent = 'Restart Game';
+                enableKeyboard();
+
+                // Immediately disable the button for the *correctly* revealed letter
+                if (revealedLetter) {
+                    const revealedLetterButton = document.getElementById(`btn-${revealedLetter}`);
+                    if (revealedLetterButton) {
+                        revealedLetterButton.disabled = true;
+                        revealedLetterButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-300');
+                        revealedLetterButton.classList.remove('hover:bg-blue-600', 'bg-blue-500');
+                    }
+                }
+
+                console.log('Game initialized. Word to guess:', wordToGuess);
+            } catch (error) {
+                console.error("Error initializing game:", error);
+                gameMessage.textContent = "An error occurred. Please try again.";
+            }
+        }
+
+        /**
+         * Updates the display of the word being guessed.
+         */
+        function updateWordDisplay() {
+            let displayString = '';
+            for (const letter of wordToGuess) {
+                if (guessedLetters.has(letter)) {
+                    displayString += letter + ' ';
+                } else {
+                    displayString += '_ ';
+                }
+            }
+            wordDisplay.textContent = displayString.trim();
+        }
+
+        /**
+         * Updates the display of letters that have already been guessed.
+         */
+        function updateUsedLettersDisplay() {
+            usedLettersDisplay.textContent = Array.from(guessedLetters).sort().join(', ');
+        }
+
+        /**
+         * Updates the hangman drawing based on the number of wrong guesses.
+         */
+        function updateHangmanDrawing() {
+            const stageIndex = Math.min(wrongGuesses, maxWrongGuesses);
+            hangmanDrawing.textContent = hangmanStages[stageIndex];
+        }
+
+        /**
+         * Handles a letter guess from the user.
+         * @param {string} letter - The letter guessed by the user.
+         */
+        function handleGuess(letter) {
+            if (!gameActive || guessedLetters.has(letter)) {
+                return;
+            }
+
+            guessedLetters.add(letter);
+            updateUsedLettersDisplay();
+
+            if (wordToGuess.includes(letter)) {
+                updateWordDisplay();
+                checkWinCondition();
+            } else {
+                wrongGuesses++;
+                updateHangmanDrawing();
+                checkLoseCondition();
+            }
+
+            const button = document.getElementById(`btn-${letter}`);
+            if (button) {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-300');
+                button.classList.remove('hover:bg-blue-600', 'bg-blue-500');
+            }
+        }
+
+        /**
+         * Handles the hint button click. Reveals one unguessed letter.
+         */
+        function handleHint() {
+            if (!gameActive || hintUsed) {
+                gameMessage.textContent = "Hint already used!";
+                gameMessage.classList.add('text-red-500');
+                gameMessage.classList.remove('text-green-600', 'text-indigo-600');
+                return;
+            }
+
+            let unguessedLetters = [];
+            for (const letter of wordToGuess) {
+                if (!guessedLetters.has(letter)) {
+                    unguessedLetters.push(letter);
+                }
+            }
+
+            if (unguessedLetters.length > 0) {
+                const hintLetter = unguessedLetters[Math.floor(Math.random() * unguessedLetters.length)];
+                guessedLetters.add(hintLetter);
+                updateWordDisplay();
+                updateUsedLettersDisplay();
+                const button = document.getElementById(`btn-${hintLetter}`);
+                if (button) {
+                    button.disabled = true;
+                    button.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-300');
+                    button.classList.remove('hover:bg-blue-600', 'bg-blue-500');
+                }
+                gameMessage.textContent = `Hint: '${hintLetter}' revealed!`;
+                gameMessage.classList.remove('text-red-500', 'text-green-600');
+                gameMessage.classList.add('text-indigo-600');
+                hintUsed = true;
+                hintButton.disabled = true;
+                hintButton.classList.add('opacity-50', 'cursor-not-allowed');
+                checkWinCondition();
+            } else {
+                gameMessage.textContent = "No more unguessed letters for a hint!";
+                gameMessage.classList.add('text-red-500');
+                gameMessage.classList.remove('text-green-600', 'text-indigo-600');
+            }
+        }
+
+        /**
+         * Checks if the player has won the game.
+         */
+        function checkWinCondition() {
+            const currentWordState = wordDisplay.textContent.replace(/ /g, '');
+            if (currentWordState === wordToGuess) {
+                gameMessage.textContent = 'You Win! 🎉';
+                gameMessage.classList.remove('text-red-500', 'text-indigo-600');
+                gameMessage.classList.add('text-green-600');
+                gameActive = false;
+                disableKeyboard();
+                hintButton.disabled = true;
+                hintButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        /**
+         * Checks if the player has lost the game.
+         */
+        function checkLoseCondition() {
+            if (wrongGuesses >= maxWrongGuesses) {
+                gameMessage.textContent = `You Lose! The word was "${wordToGuess}"`;
+                gameMessage.classList.remove('text-green-600', 'text-indigo-600');
+                gameMessage.classList.add('text-red-500');
+                gameActive = false;
+                disableKeyboard();
+                hintButton.disabled = true;
+                hintButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        /**
+         * Generates and appends alphabet buttons to the keyboard container.
+         */
+        function createKeyboard() {
+            for (let i = 65; i <= 90; i++) {
+                const letter = String.fromCharCode(i);
+                const button = document.createElement('button');
+                button.id = `btn-${letter}`;
+                button.textContent = letter;
+                button.classList.add(
+                    'bg-blue-500', 'hover:bg-blue-600', 'text-white', 'font-bold',
+                    'py-3', 'px-4', 'rounded-lg', 'shadow-md', 'text-xl',
+                    'transition', 'duration-200', 'ease-in-out', 'transform',
+                    'hover:scale-105', 'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-300'
+                );
+                button.addEventListener('click', () => handleGuess(letter));
+                keyboard.appendChild(button);
+            }
+        }
+
+        /**
+         * Disables all keyboard buttons.
+         */
+        function disableKeyboard() {
+            const buttons = keyboard.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-300');
+                button.classList.remove('hover:bg-blue-600', 'bg-blue-500', 'hover:scale-105');
+            });
+        }
+
+        /**
+         * Enables all keyboard buttons and resets their styles.
+         */
+        function enableKeyboard() {
+            const buttons = keyboard.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.disabled = false;
+                button.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-300');
+                button.classList.add('hover:bg-blue-600', 'bg-blue-500', 'hover:scale-105');
+            });
+        }
+
+        /**
+         * Displays the game screen and initializes the game.
+         */
+        function showGameScreen() {
+            homeScreen.classList.add('opacity-0'); // Fade out home screen
+            setTimeout(() => {
+                homeScreen.classList.add('hidden'); // Hide home screen after fade out
+                gameContainer.classList.remove('hidden'); // Show game container
+                gameContainer.classList.add('opacity-100'); // Fade in game container
+                initGame(); // Initialize the game once the game screen is visible
+            }, 500); // Match this timeout to the CSS transition duration
+        }
+
+
+        // Event Listeners
+        playGameButton.addEventListener('click', showGameScreen);
+        startButton.addEventListener('click', initGame);
+        hintButton.addEventListener('click', handleHint);
+
+        // Initial setup on page load
+        window.onload = function() {
+            createKeyboard(); // Create the keyboard buttons once
+            // Game will not start immediately, it waits for 'Play Game' button click
+        };
+    </script>
+</body>
+</html>
